@@ -2,12 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    
+    <!-- 🔥 MOBILE FULLSCREEN FIX (IMPORTANT) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>fruit-slash-game</title>
+    <title>Fruit Slash Game</title>
+
+    <!-- 🔥 REMOVE SCROLL / MOBILE CUT ISSUE -->
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: black;
+        height: 100%;
+        width: 100%;
+      }
+
+      #root {
+        height: 100%;
+        width: 100%;
+      }
+
+      canvas {
+        display: block;
+      }
+    </style>
   </head>
+
   <body>
     <div id="root"></div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

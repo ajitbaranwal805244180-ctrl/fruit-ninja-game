@@ -1,10 +1,6 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
-import "./index.css";
+import Phaser from "phaser";
+import config from "./game/config";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const game = new Phaser.Game(config);
+
+export default game;

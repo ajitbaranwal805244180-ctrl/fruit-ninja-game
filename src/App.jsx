@@ -1,24 +1,14 @@
-import { useEffect, useRef } from "react";
-import Phaser from "phaser";
-import config from "./game/config";
+import { useEffect } from "react";
+import game from "./main";
 
-function App() {
-  const gameRef = useRef(null);
-
+export default function App() {
   useEffect(() => {
-    const newConfig = {
-      ...config,
-      parent: gameRef.current,
-    };
-
-    const game = new Phaser.Game(newConfig);
-
     return () => {
       game.destroy(true);
     };
   }, []);
 
-  return <div ref={gameRef}></div>;
+  return (
+    <div style={{ width: "100vw", height: "100vh" }} />
+  );
 }
-
-export default App;

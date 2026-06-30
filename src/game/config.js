@@ -3,17 +3,16 @@ import MainScene from "./MainScene";
 
 const config = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 600,
-  backgroundColor: "#000000",
-  parent: "game",
-  scene: [MainScene],
-  physics: {
-    default: "arcade",
-    arcade: {
-      debug: false,
-    },
+
+  scale: {
+    mode: Phaser.Scale.FIT,   // safe mobile fit
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 800,
+    height: 600,
   },
+
+  backgroundColor: "#000000",
+  scene: [MainScene],
 };
 
 export default config;
