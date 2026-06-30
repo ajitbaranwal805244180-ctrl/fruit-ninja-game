@@ -15,25 +15,22 @@ export default class MainScene extends Phaser.Scene {
     this.load.image("mango", "/assets/mango.png");
     this.load.image("bomb", "/assets/bomb.png");
 
+    this.load.image("sword", "/assets/sword.png");
+
     this.load.audio("cut", "/assets/cut.mp3");
     this.load.audio("boom", "/assets/boom.mp3");
   }
 
   create() {
     this.score = 0;
+    this.combo = 0;
     this.gameOver = false;
     this.fruitsGroup = this.add.group();
 
-    this.highScore = Number(localStorage.getItem("highScore")) || 0;
     this.playerName = localStorage.getItem("playerName");
+    this.highScore = Number(localStorage.getItem("highScore")) || 0;
 
-    this.add.rectangle(
-      this.scale.width / 2,
-      this.scale.height / 2,
-      this.scale.width,
-      this.scale.height,
-      0x000000
-    );
+    this.cameras.main.setBackgroundColor("#050814");
 
     if (!this.playerName) {
       this.showStartScreen();
@@ -43,7 +40,7 @@ export default class MainScene extends Phaser.Scene {
     this.startGame();
   }
 
-  // ================= START SCREEN =================
+  // ================= NAME SCREEN =================
   showStartScreen() {
     const wrapper = document.createElement("div");
     wrapper.style.position = "fixed";
@@ -51,7 +48,7 @@ export default class MainScene extends Phaser.Scene {
     wrapper.style.left = "0";
     wrapper.style.width = "100%";
     wrapper.style.height = "100%";
-    wrapper.style.background = "linear-gradient(#000,#111)";
+    wrapper.style.background = "rgba(0,0,0,0.9)";
     wrapper.style.display = "flex";
     wrapper.style.flexDirection = "column";
     wrapper.style.justifyContent = "center";
@@ -61,22 +58,16 @@ export default class MainScene extends Phaser.Scene {
     const title = document.createElement("h1");
     title.innerText = "🍉 Fruit Slash Game";
     title.style.color = "white";
-    title.style.marginBottom = "20px";
 
     const input = document.createElement("input");
     input.placeholder = "Enter Your Name";
     input.style.padding = "12px";
     input.style.fontSize = "18px";
-    input.style.borderRadius = "10px";
 
     const btn = document.createElement("button");
     btn.innerText = "START GAME";
-    btn.style.marginTop = "15px";
-    btn.style.padding = "12px 25px";
-    btn.style.fontSize = "18px";
-    btn.style.background = "#00ffcc";
-    btn.style.border = "none";
-    btn.style.cursor = "pointer";
+    btn.style.marginTop = "10px";
+    btn.style.padding = "10px 20px";
 
     wrapper.appendChild(title);
     wrapper.appendChild(input);
@@ -95,7 +86,6 @@ export default class MainScene extends Phaser.Scene {
     };
 
     btn.onclick = start;
-
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") start();
     });
@@ -111,29 +101,47 @@ export default class MainScene extends Phaser.Scene {
       color: "#ffffff",
     });
 
-    this.add.text(20, 50, "Player: " + this.playerName, {
+    this.comboText = this.add.text(20, 50, "Combo: x1", {
+      fontSize: "18px",
+      color: "#ffcc00",
+    });
+
+    this.nameText = this.add.text(20, 80, "Player: " + this.playerName, {
       fontSize: "18px",
       color: "#00ffcc",
     });
 
-    this.add.text(20, 80, "High Score: " + this.highScore, {
+    this.highText = this.add.text(20, 110, "High Score: " + this.highScore, {
       fontSize: "18px",
       color: "#ffff00",
     });
 
     this.fruits = [
-      "apple","banana","watermelon","strawberry",
-      "pineapple","orange","mango","bomb"
+      "apple",
+      "banana",
+      "watermelon",
+      "strawberry",
+      "pineapple",
+      "orange",
+      "mango",
+      "bomb",
     ];
 
-    // 🍉 SPAWN
-    this.spawn = this.time.addEvent({
-      delay: 700,
+    // 🍉 SPAWN SYSTEM
+    this.spawnEvent = this.time.addEvent({
+      delay: 800,
       loop: true,
       callback: () => {
         if (this.gameOver) return;
 
-        const key = this.fruits[Math.floor(Math.random() * this.fruits.length)];
+        const speed = Math.max(600, 2200 - this.score * 40);
+
+        const bombChance = 0.1 + this.score * 0.005;
+        const isBomb = Math.random() < bombChance;
+
+        const key = isBomb
+          ? "bomb"
+          : this.fruits[Math.floor(Math.random() * (this.fruits.length - 1))];
 
         const fruit = this.add.image(
           Phaser.Math.Between(80, this.scale.width - 80),
@@ -147,76 +155,118 @@ export default class MainScene extends Phaser.Scene {
         this.tweens.add({
           targets: fruit,
           y: this.scale.height + 50,
-          duration: 2500,
-          onComplete: () => fruit.destroy(),
+          duration: speed,
+          onComplete: () => {
+            if (!fruit.cut && !this.gameOver) {
+              this.combo = 0;
+              this.updateCombo();
+            }
+            fruit.destroy();
+          },
         });
       },
     });
 
-    // ✂️ CUT
+    // ⚔️ SWIPE
     this.input.on("pointermove", (pointer) => {
       if (this.gameOver) return;
 
-      this.fruitsGroup.getChildren().forEach((fruit) => {
-        if (!fruit) return;
+      const sword = this.add.image(pointer.x, pointer.y, "sword");
+      sword.setDisplaySize(65, 65);
+      sword.setAlpha(0.9);
 
-        const dx = pointer.x - fruit.x;
-        const dy = pointer.y - fruit.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+      this.tweens.add({
+        targets: sword,
+        alpha: 0,
+        duration: 100,
+        onComplete: () => sword.destroy(),
+      });
+
+      this.fruitsGroup.getChildren().forEach((fruit) => {
+        if (!fruit || fruit.cut) return;
+
+        const dist = Phaser.Math.Distance.Between(
+          pointer.x,
+          pointer.y,
+          fruit.x,
+          fruit.y
+        );
 
         if (dist < 45) {
-          const key = fruit.texture.key;
-
-          if (key === "bomb") {
+          if (fruit.texture.key === "bomb") {
             this.endGame();
             return;
           }
 
-          this.cutSound.play();
-          this.score++;
-          this.scoreText.setText("Score: " + this.score);
-
-          this.splitFruit(fruit, key);
+          fruit.cut = true;
+          this.onFruitCut(fruit);
         }
       });
     });
   }
 
-  // ================= SPLIT EFFECT =================
-  splitFruit(fruit, key) {
-    const x = fruit.x;
-    const y = fruit.y;
+  // ================= CUT LOGIC =================
+  onFruitCut(fruit) {
+    this.cutSound.play();
 
-    fruit.destroy();
+    this.combo++;
 
-    const left = this.add.image(x, y, key).setScale(0.15);
-    const right = this.add.image(x, y, key).setScale(0.15);
+    const multiplier = Math.min(5, Math.floor(this.combo / 3) + 1);
+    this.score += multiplier;
+
+    this.updateScoreUI();
+    this.updateCombo();
+
+    // 2-part cut effect
+    const left = this.add.image(fruit.x, fruit.y, fruit.texture.key);
+    const right = this.add.image(fruit.x, fruit.y, fruit.texture.key);
+
+    left.setScale(0.25);
+    right.setScale(0.25);
 
     this.tweens.add({
       targets: left,
-      x: x - 70,
-      y: y + 80,
-      angle: -180,
+      x: fruit.x - 60,
       alpha: 0,
-      duration: 400,
+      duration: 250,
       onComplete: () => left.destroy(),
     });
 
     this.tweens.add({
       targets: right,
-      x: x + 70,
-      y: y + 80,
-      angle: 180,
+      x: fruit.x + 60,
       alpha: 0,
-      duration: 400,
+      duration: 250,
       onComplete: () => right.destroy(),
     });
+
+    fruit.destroy();
+  }
+
+  updateScoreUI() {
+    this.scoreText.setText("Score: " + this.score);
+    this.updateBackground();
+  }
+
+  updateCombo() {
+    const multiplier = Math.min(5, Math.floor(this.combo / 3) + 1);
+    this.comboText.setText("Combo: x" + multiplier);
+  }
+
+  // ================= BACKGROUND CHANGE =================
+  updateBackground() {
+    if (this.score >= 50) {
+      this.cameras.main.setBackgroundColor("#0b0f2a");
+    } else if (this.score >= 25) {
+      this.cameras.main.setBackgroundColor("#1a2a3a");
+    } else {
+      this.cameras.main.setBackgroundColor("#050814");
+    }
   }
 
   // ================= GAME OVER =================
   endGame() {
     this.gameOver = true;
-
     this.boomSound.play();
 
     this.time.removeAllEvents();
@@ -236,22 +286,30 @@ export default class MainScene extends Phaser.Scene {
       0.85
     );
 
-    this.add.text(this.scale.width / 2 - 120, this.scale.height / 2 - 80,
-      "💥 GAME OVER", { fontSize: "40px", color: "#ff0000" });
+    this.add.text(
+      this.scale.width / 2 - 120,
+      this.scale.height / 2 - 80,
+      "💥 GAME OVER",
+      { fontSize: "40px", color: "#ff0000" }
+    );
 
-    this.add.text(this.scale.width / 2 - 140, this.scale.height / 2 - 20,
-      "Well Tried Fuggi 😄", { fontSize: "24px", color: "#ffffff" });
+    this.add.text(
+      this.scale.width / 2 - 120,
+      this.scale.height / 2 - 20,
+      "Score: " + this.score,
+      { fontSize: "24px", color: "#ffff00" }
+    );
 
-    this.add.text(this.scale.width / 2 - 90, this.scale.height / 2 + 20,
-      "Score: " + this.score, { fontSize: "22px", color: "#ffff00" });
+    this.add.text(
+      this.scale.width / 2 - 150,
+      this.scale.height / 2 + 20,
+      "High Score: " + this.highScore,
+      { fontSize: "22px", color: "#00ffcc" }
+    );
 
-    this.add.text(this.scale.width / 2 - 110, this.scale.height / 2 + 60,
-      "High Score: " + this.highScore, { fontSize: "20px", color: "#00ffcc" });
-
-    // 🔁 RETRY
     const retry = this.add.text(
-      this.scale.width / 2 - 50,
-      this.scale.height / 2 + 110,
+      this.scale.width / 2 - 60,
+      this.scale.height / 2 + 80,
       "RETRY",
       {
         fontSize: "24px",
@@ -264,10 +322,9 @@ export default class MainScene extends Phaser.Scene {
     retry.setInteractive();
     retry.on("pointerdown", () => this.scene.restart());
 
-    // 👤 NEW NAME
     const newName = this.add.text(
-      this.scale.width / 2 - 70,
-      this.scale.height / 2 + 160,
+      this.scale.width / 2 - 80,
+      this.scale.height / 2 + 140,
       "NEW NAME",
       {
         fontSize: "22px",
