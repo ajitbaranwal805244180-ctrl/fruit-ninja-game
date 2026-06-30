@@ -20,15 +20,14 @@ export default class MainScene extends Phaser.Scene {
   }
 
   create() {
-    // safe background (prevents black freeze issue)
     this.add.rectangle(400, 300, 800, 600, 0x000000, 1);
 
     this.gameOver = false;
     this.lastCutTime = 0;
 
-    // SAFE AUDIO FIX (IMPORTANT for Vercel)
+    // SAFE AUDIO (NO CRASH)
     this.input.once("pointerdown", () => {
-      if (this.sound && this.sound.context) {
+      if (this.sound?.context?.resume) {
         this.sound.context.resume().catch(() => {});
       }
     });
@@ -36,7 +35,7 @@ export default class MainScene extends Phaser.Scene {
     this.cutSound = this.sound.add("cut");
     this.boomSound = this.sound.add("boom");
 
-    // 👤 NAME SYSTEM
+    // NAME SYSTEM
     this.playerName = localStorage.getItem("playerName");
 
     if (!this.playerName) {
@@ -85,7 +84,7 @@ export default class MainScene extends Phaser.Scene {
     this.score = 0;
     this.highScore = Number(localStorage.getItem("highScore")) || 0;
 
-    this.add.text(20, 20, "🍉 Fruit Ninja", {
+    this.add.text(20, 20, "🍉 Fruit Ninja Pro", {
       fontSize: "28px",
       color: "#ffffff",
     });
@@ -116,7 +115,7 @@ export default class MainScene extends Phaser.Scene {
       "bomb",
     ];
 
-    // SPAWN
+    // SPAWN SYSTEM
     this.time.addEvent({
       delay: 750,
       loop: true,
@@ -143,14 +142,14 @@ export default class MainScene extends Phaser.Scene {
       },
     });
 
-    // ✂️ SAFE CUT (NO LAG + NO BLACK SCREEN)
+    // ✂️ SAFE CUT SYSTEM (NO LAG, NO BUG)
     this.input.on("pointermove", (pointer) => {
       if (this.gameOver) return;
 
       const now = Date.now();
       if (now - this.lastCutTime < 120) return;
 
-      this.children.list.forEach((child) => {
+      this.children.each((child) => {
         if (!child || !child.texture) return;
 
         const dx = pointer.x - child.x;
@@ -187,7 +186,7 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // ✂️ 2 PART CUT
+  // ✂️ 2 PART CUT (SAFE VISUAL ONLY)
   createCutEffect(x, y, key) {
     const left = this.add.image(x, y, key).setScale(0.2);
     const right = this.add.image(x, y, key).setScale(0.2);
@@ -249,6 +248,19 @@ export default class MainScene extends Phaser.Scene {
 
     btn.setInteractive();
     btn.on("pointerdown", () => {
+      this.scene.restart();
+    });
+
+    const newName = this.add.text(300, 470, "NEW NAME", {
+      fontSize: "22px",
+      backgroundColor: "#ffff00",
+      color: "#000",
+      padding: { x: 10, y: 5 },
+    });
+
+    newName.setInteractive();
+    newName.on("pointerdown", () => {
+      localStorage.removeItem("playerName");
       this.scene.restart();
     });
   }
