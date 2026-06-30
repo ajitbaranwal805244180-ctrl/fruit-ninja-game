@@ -14,7 +14,6 @@ export default class MainScene extends Phaser.Scene {
     this.load.image("orange", "/assets/orange.png");
     this.load.image("mango", "/assets/mango.png");
     this.load.image("bomb", "/assets/bomb.png");
-
     this.load.image("sword", "/assets/sword.png");
 
     this.load.audio("cut", "/assets/cut.mp3");
@@ -55,26 +54,19 @@ export default class MainScene extends Phaser.Scene {
     wrapper.style.alignItems = "center";
     wrapper.style.zIndex = "99999";
 
-    const title = document.createElement("h1");
-    title.innerText = "🍉 Fruit Slash Game";
-    title.style.color = "white";
-
     const input = document.createElement("input");
-    input.placeholder = "Enter Your Name";
+    input.placeholder = "Enter Name";
     input.style.padding = "12px";
     input.style.fontSize = "18px";
 
     const btn = document.createElement("button");
-    btn.innerText = "START GAME";
+    btn.innerText = "START";
     btn.style.marginTop = "10px";
     btn.style.padding = "10px 20px";
 
-    wrapper.appendChild(title);
     wrapper.appendChild(input);
     wrapper.appendChild(btn);
     document.body.appendChild(wrapper);
-
-    input.focus();
 
     const start = () => {
       const name = input.value.trim();
@@ -98,7 +90,7 @@ export default class MainScene extends Phaser.Scene {
 
     this.scoreText = this.add.text(20, 20, "Score: 0", {
       fontSize: "24px",
-      color: "#ffffff",
+      color: "#fff",
     });
 
     this.comboText = this.add.text(20, 50, "Combo: x1", {
@@ -116,6 +108,9 @@ export default class MainScene extends Phaser.Scene {
       color: "#ffff00",
     });
 
+    this.startRain();
+    this.createSword();
+
     this.fruits = [
       "apple",
       "banana",
@@ -127,16 +122,29 @@ export default class MainScene extends Phaser.Scene {
       "bomb",
     ];
 
-    // 🍉 SPAWN SYSTEM
+    // cleanup (prevents crash)
+    this.time.addEvent({
+      delay: 5000,
+      loop: true,
+      callback: () => {
+        this.children.list.forEach((obj) => {
+          if (obj && obj.y > this.scale.height + 100) {
+            obj.destroy();
+          }
+        });
+      },
+    });
+
+    // SPAWN SYSTEM
     this.spawnEvent = this.time.addEvent({
-      delay: 800,
+      delay: 900,
       loop: true,
       callback: () => {
         if (this.gameOver) return;
 
-        const speed = Math.max(600, 2200 - this.score * 40);
+        const speed = Math.max(800, 2200 - this.score * 20);
 
-        const bombChance = 0.1 + this.score * 0.005;
+        const bombChance = Math.min(0.25, 0.08 + this.score * 0.002);
         const isBomb = Math.random() < bombChance;
 
         const key = isBomb
@@ -159,7 +167,7 @@ export default class MainScene extends Phaser.Scene {
           onComplete: () => {
             if (!fruit.cut && !this.gameOver) {
               this.combo = 0;
-              this.updateCombo();
+              this.updateUI();
             }
             fruit.destroy();
           },
@@ -167,20 +175,12 @@ export default class MainScene extends Phaser.Scene {
       },
     });
 
-    // ⚔️ SWIPE
+    // SWIPE SYSTEM (FIXED - NO CRASH)
     this.input.on("pointermove", (pointer) => {
       if (this.gameOver) return;
 
-      const sword = this.add.image(pointer.x, pointer.y, "sword");
-      sword.setDisplaySize(65, 65);
-      sword.setAlpha(0.9);
-
-      this.tweens.add({
-        targets: sword,
-        alpha: 0,
-        duration: 100,
-        onComplete: () => sword.destroy(),
-      });
+      this.sword.x = pointer.x;
+      this.sword.y = pointer.y;
 
       this.fruitsGroup.getChildren().forEach((fruit) => {
         if (!fruit || fruit.cut) return;
@@ -205,6 +205,13 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
+  // ================= SWORD (REUSED - FIX CRASH) =================
+  createSword() {
+    this.sword = this.add.image(0, 0, "sword");
+    this.sword.setDisplaySize(65, 65);
+    this.sword.setAlpha(0.8);
+  }
+
   // ================= CUT LOGIC =================
   onFruitCut(fruit) {
     this.cutSound.play();
@@ -214,10 +221,8 @@ export default class MainScene extends Phaser.Scene {
     const multiplier = Math.min(5, Math.floor(this.combo / 3) + 1);
     this.score += multiplier;
 
-    this.updateScoreUI();
-    this.updateCombo();
+    this.updateUI();
 
-    // 2-part cut effect
     const left = this.add.image(fruit.x, fruit.y, fruit.texture.key);
     const right = this.add.image(fruit.x, fruit.y, fruit.texture.key);
 
@@ -243,17 +248,15 @@ export default class MainScene extends Phaser.Scene {
     fruit.destroy();
   }
 
-  updateScoreUI() {
+  updateUI() {
     this.scoreText.setText("Score: " + this.score);
+
+    const mult = Math.min(5, Math.floor(this.combo / 3) + 1);
+    this.comboText.setText("Combo: x" + mult);
+
     this.updateBackground();
   }
 
-  updateCombo() {
-    const multiplier = Math.min(5, Math.floor(this.combo / 3) + 1);
-    this.comboText.setText("Combo: x" + multiplier);
-  }
-
-  // ================= BACKGROUND CHANGE =================
   updateBackground() {
     if (this.score >= 50) {
       this.cameras.main.setBackgroundColor("#0b0f2a");
@@ -262,6 +265,33 @@ export default class MainScene extends Phaser.Scene {
     } else {
       this.cameras.main.setBackgroundColor("#050814");
     }
+  }
+
+  // ================= RAIN =================
+  startRain() {
+    this.time.addEvent({
+      delay: 120,
+      loop: true,
+      callback: () => {
+        if (this.gameOver) return;
+
+        const drop = this.add.rectangle(
+          Phaser.Math.Between(0, this.scale.width),
+          -10,
+          2,
+          10,
+          0x99ccff,
+          0.4
+        );
+
+        this.tweens.add({
+          targets: drop,
+          y: this.scale.height + 20,
+          duration: 900,
+          onComplete: () => drop.destroy(),
+        });
+      },
+    });
   }
 
   // ================= GAME OVER =================
@@ -286,53 +316,37 @@ export default class MainScene extends Phaser.Scene {
       0.85
     );
 
-    this.add.text(
-      this.scale.width / 2 - 120,
-      this.scale.height / 2 - 80,
-      "💥 GAME OVER",
-      { fontSize: "40px", color: "#ff0000" }
-    );
+    this.add.text(200, 200, "💥 GAME OVER", {
+      fontSize: "40px",
+      color: "#ff0000",
+    });
 
-    this.add.text(
-      this.scale.width / 2 - 120,
-      this.scale.height / 2 - 20,
-      "Score: " + this.score,
-      { fontSize: "24px", color: "#ffff00" }
-    );
+    this.add.text(200, 260, "Score: " + this.score, {
+      fontSize: "24px",
+      color: "#ffff00",
+    });
 
-    this.add.text(
-      this.scale.width / 2 - 150,
-      this.scale.height / 2 + 20,
-      "High Score: " + this.highScore,
-      { fontSize: "22px", color: "#00ffcc" }
-    );
+    this.add.text(200, 300, "High Score: " + this.highScore, {
+      fontSize: "22px",
+      color: "#00ffcc",
+    });
 
-    const retry = this.add.text(
-      this.scale.width / 2 - 60,
-      this.scale.height / 2 + 80,
-      "RETRY",
-      {
-        fontSize: "24px",
-        backgroundColor: "#00ffcc",
-        color: "#000",
-        padding: { x: 10, y: 5 },
-      }
-    );
+    const retry = this.add.text(200, 360, "RETRY", {
+      fontSize: "24px",
+      backgroundColor: "#00ffcc",
+      color: "#000",
+      padding: { x: 10, y: 5 },
+    });
 
     retry.setInteractive();
     retry.on("pointerdown", () => this.scene.restart());
 
-    const newName = this.add.text(
-      this.scale.width / 2 - 80,
-      this.scale.height / 2 + 140,
-      "NEW NAME",
-      {
-        fontSize: "22px",
-        backgroundColor: "#ffcc00",
-        color: "#000",
-        padding: { x: 10, y: 5 },
-      }
-    );
+    const newName = this.add.text(200, 420, "NEW NAME", {
+      fontSize: "22px",
+      backgroundColor: "#ffcc00",
+      color: "#000",
+      padding: { x: 10, y: 5 },
+    });
 
     newName.setInteractive();
     newName.on("pointerdown", () => {
