@@ -20,15 +20,13 @@ export default class MainScene extends Phaser.Scene {
   }
 
   create() {
-    this.add.rectangle(400, 300, 800, 600, 0x000000);
-
     this.gameOver = false;
+    this.score = 0;
     this.lastCutTime = 0;
 
-    this.score = 0;
-    this.highScore = Number(localStorage.getItem("highScore")) || 0;
-
     this.playerName = localStorage.getItem("playerName");
+
+    this.add.rectangle(400, 300, 800, 600, 0x000000);
 
     if (!this.playerName) {
       this.askName();
@@ -38,19 +36,17 @@ export default class MainScene extends Phaser.Scene {
     this.startGame();
   }
 
-  // ================= MOBILE INPUT =================
+  // ================= NAME INPUT =================
   askName() {
-    this.add.text(200, 200, "🍉 Fruit Ninja", {
-      fontSize: "32px",
+    this.add.text(220, 200, "🍉 Fruit Slash Game", {
+      fontSize: "30px",
       color: "#ffffff",
     });
 
     this.add.text(240, 250, "Enter Your Name", {
-      fontSize: "24px",
+      fontSize: "22px",
       color: "#00ffcc",
     });
-
-    this.input.keyboard.enabled = false;
 
     const wrapper = document.createElement("div");
     wrapper.style.position = "absolute";
@@ -61,20 +57,21 @@ export default class MainScene extends Phaser.Scene {
     wrapper.style.display = "flex";
     wrapper.style.justifyContent = "center";
     wrapper.style.alignItems = "center";
-    wrapper.style.background = "rgba(0,0,0,0.6)";
+    wrapper.style.background = "rgba(0,0,0,0.7)";
     wrapper.style.zIndex = "9999";
 
     const input = document.createElement("input");
     input.type = "text";
-    input.placeholder = "Enter name...";
+    input.placeholder = "Your name";
     input.style.padding = "12px";
     input.style.fontSize = "18px";
-    input.style.borderRadius = "10px";
+    input.style.borderRadius = "8px";
 
     const btn = document.createElement("button");
     btn.innerText = "START";
     btn.style.marginLeft = "10px";
     btn.style.padding = "12px";
+    btn.style.background = "#00ffcc";
 
     wrapper.appendChild(input);
     wrapper.appendChild(btn);
@@ -87,8 +84,12 @@ export default class MainScene extends Phaser.Scene {
       if (!name) return;
 
       localStorage.setItem("playerName", name);
+
       document.body.removeChild(wrapper);
-      this.scene.restart();
+
+      this.time.delayedCall(100, () => {
+        this.scene.restart();
+      });
     };
 
     btn.onclick = start;
@@ -103,24 +104,14 @@ export default class MainScene extends Phaser.Scene {
     this.cutSound = this.sound.add("cut");
     this.boomSound = this.sound.add("boom");
 
+    this.fruits = ["apple","banana","watermelon","strawberry","pineapple","orange","mango","bomb"];
+
     this.fruitGroup = this.add.group();
 
-    this.add.text(20, 20, "🍉 Fruit Ninja Pro", {
-      fontSize: "24px",
-      color: "#fff",
-    });
+    this.add.text(20, 20, "Fruit Slash Game", { fontSize: "24px", color: "#fff" });
+    this.add.text(20, 50, "Player: " + this.playerName, { fontSize: "18px", color: "#00ffcc" });
 
-    this.add.text(20, 50, "Player: " + this.playerName, {
-      fontSize: "18px",
-      color: "#00ffcc",
-    });
-
-    this.scoreText = this.add.text(20, 80, "Score: 0", {
-      fontSize: "20px",
-      color: "#fff",
-    });
-
-    this.fruits = ["apple","banana","watermelon","strawberry","pineapple","orange","mango","bomb"];
+    this.scoreText = this.add.text(20, 80, "Score: 0", { fontSize: "20px", color: "#fff" });
 
     this.time.addEvent({
       delay: 700,
@@ -152,6 +143,8 @@ export default class MainScene extends Phaser.Scene {
       if (this.gameOver) return;
 
       this.fruitGroup.getChildren().forEach((fruit) => {
+        if (!fruit) return;
+
         const dx = pointer.x - fruit.x;
         const dy = pointer.y - fruit.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -190,7 +183,7 @@ export default class MainScene extends Phaser.Scene {
       color: "#fff",
     });
 
-    const btn = this.add.text(280, 350, "RESTART", {
+    const btn = this.add.text(280, 360, "RESTART", {
       fontSize: "24px",
       backgroundColor: "#00ffcc",
       color: "#000",
