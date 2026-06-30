@@ -38,59 +38,78 @@ export default class MainScene extends Phaser.Scene {
     this.startGame();
   }
 
-  // ✅ FINAL NAME INPUT WITH CURSOR
+  // ===============================
+  // ✅ MOBILE FRIENDLY NAME INPUT
+  // ===============================
   askName() {
-    this.add.text(260, 200, "Enter Your Name", {
-      fontSize: "28px",
+    this.add.text(220, 180, "🍉 Fruit Ninja Pro", {
+      fontSize: "32px",
       color: "#ffffff",
     });
 
-    this.add.rectangle(400, 300, 300, 50, 0xffffff);
-
-    this.nameText = this.add.text(300, 290, "", {
-      fontSize: "22px",
-      color: "#000",
+    this.add.text(240, 230, "Enter Your Name", {
+      fontSize: "24px",
+      color: "#00ffcc",
     });
 
-    // blinking cursor
-    this.cursor = this.add.text(300, 290, "|", {
-      fontSize: "22px",
-      color: "#000",
-    });
+    this.add.rectangle(400, 320, 350, 60, 0x000000, 0.6);
 
-    this.cursorVisible = true;
+    this.input.keyboard.enabled = false;
 
-    this.time.addEvent({
-      delay: 500,
-      loop: true,
-      callback: () => {
-        this.cursorVisible = !this.cursorVisible;
-        this.cursor.setVisible(this.cursorVisible);
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "absolute";
+    wrapper.style.top = "0";
+    wrapper.style.left = "0";
+    wrapper.style.width = "100%";
+    wrapper.style.height = "100%";
+    wrapper.style.display = "flex";
+    wrapper.style.justifyContent = "center";
+    wrapper.style.alignItems = "center";
+    wrapper.style.background = "rgba(0,0,0,0.5)";
+    wrapper.style.zIndex = "9999";
 
-        // move cursor with text
-        this.cursor.x = 300 + this.nameText.text.length * 12;
-      },
-    });
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Enter your name...";
+    input.style.padding = "15px 20px";
+    input.style.fontSize = "18px";
+    input.style.border = "2px solid #00ffcc";
+    input.style.borderRadius = "10px";
+    input.style.outline = "none";
+    input.style.width = "220px";
+    input.style.textAlign = "center";
+    input.style.boxShadow = "0 0 10px #00ffcc";
 
-    this.input.keyboard.enabled = true;
-    this.input.keyboard.removeAllListeners();
+    const btn = document.createElement("button");
+    btn.innerText = "Start Game";
+    btn.style.marginLeft = "10px";
+    btn.style.padding = "15px 20px";
+    btn.style.fontSize = "16px";
+    btn.style.border = "none";
+    btn.style.borderRadius = "10px";
+    btn.style.background = "#00ffcc";
+    btn.style.cursor = "pointer";
 
-    this.input.keyboard.on("keydown", (event) => {
-      if (!this.nameText) return;
+    wrapper.appendChild(input);
+    wrapper.appendChild(btn);
+    document.body.appendChild(wrapper);
 
-      if (event.key === "Backspace") {
-        this.nameText.text = this.nameText.text.slice(0, -1);
-      } 
-      else if (event.key === "Enter") {
-        const name = this.nameText.text.trim();
-        if (!name) return;
+    input.focus();
 
-        localStorage.setItem("playerName", name);
-        this.scene.restart();
-      } 
-      else if (event.key.length === 1) {
-        this.nameText.text += event.key;
-      }
+    const start = () => {
+      const name = input.value.trim();
+      if (!name) return;
+
+      localStorage.setItem("playerName", name);
+
+      document.body.removeChild(wrapper);
+      this.scene.restart();
+    };
+
+    btn.onclick = start;
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") start();
     });
   }
 
