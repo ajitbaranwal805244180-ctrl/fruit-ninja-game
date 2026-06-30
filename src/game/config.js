@@ -4,14 +4,20 @@ import MainScene from "./MainScene";
 const config = {
   type: Phaser.AUTO,
 
+  parent: "root",
+
+  // 📱 RESPONSIVE FULL SCREEN (MOST IMPORTANT FIX)
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 800,
-    height: 600,
   },
 
+  // 🎮 safe dynamic size
+  width: window.innerWidth,
+  height: window.innerHeight,
+
   backgroundColor: "#000000",
+
   scene: [MainScene],
 };
 
