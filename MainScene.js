@@ -20,22 +20,15 @@ export default class MainScene extends Phaser.Scene {
   }
 
   create() {
-    this.add.rectangle(400, 300, 800, 600, 0x000000, 1);
+    this.add.rectangle(400, 300, 800, 600, 0x000000);
 
     this.gameOver = false;
     this.lastCutTime = 0;
 
-    // SAFE AUDIO (NO CRASH)
-    this.input.once("pointerdown", () => {
-      if (this.sound?.context?.resume) {
-        this.sound.context.resume().catch(() => {});
-      }
-    });
+    this.score = 0;
+    this.highScore = Number(localStorage.getItem("highScore")) || 0;
 
-    this.cutSound = this.sound.add("cut");
-    this.boomSound = this.sound.add("boom");
-
-    // NAME SYSTEM
+    // NAME (SAFE)
     this.playerName = localStorage.getItem("playerName");
 
     if (!this.playerName) {
@@ -46,61 +39,57 @@ export default class MainScene extends Phaser.Scene {
     this.startGame();
   }
 
+  // 🎮 NAME INPUT (PHASER UI - NO DOM FREEZE)
   askName() {
-    const input = document.createElement("input");
-    input.placeholder = "Enter your name";
-    input.style.position = "absolute";
-    input.style.top = "50%";
-    input.style.left = "50%";
-    input.style.transform = "translate(-50%, -50%)";
-    input.style.padding = "10px";
-    input.style.fontSize = "18px";
-
-    const btn = document.createElement("button");
-    btn.innerText = "Start Game";
-    btn.style.position = "absolute";
-    btn.style.top = "60%";
-    btn.style.left = "50%";
-    btn.style.transform = "translate(-50%, -50%)";
-    btn.style.padding = "10px 20px";
-
-    document.body.appendChild(input);
-    document.body.appendChild(btn);
-
-    btn.onclick = () => {
-      const name = input.value.trim();
-      if (!name) return;
-
-      localStorage.setItem("playerName", name);
-
-      document.body.removeChild(input);
-      document.body.removeChild(btn);
-
-      this.scene.restart();
-    };
-  }
-
-  startGame() {
-    this.score = 0;
-    this.highScore = Number(localStorage.getItem("highScore")) || 0;
-
-    this.add.text(20, 20, "🍉 Fruit Ninja Pro", {
+    this.add.text(260, 200, "Enter Your Name", {
       fontSize: "28px",
       color: "#ffffff",
     });
 
-    this.add.text(20, 50, "Player: " + this.playerName, {
-      fontSize: "20px",
+    const box = this.add.rectangle(400, 300, 300, 50, 0xffffff);
+
+    this.nameText = this.add.text(300, 290, "", {
+      fontSize: "22px",
+      color: "#000",
+    });
+
+    this.input.keyboard.on("keydown", (event) => {
+      if (event.key === "Backspace") {
+        this.nameText.text = this.nameText.text.slice(0, -1);
+      } else if (event.key === "Enter") {
+        if (!this.nameText.text.trim()) return;
+
+        localStorage.setItem("playerName", this.nameText.text.trim());
+        this.scene.restart();
+      } else if (event.key.length === 1) {
+        this.nameText.text += event.key;
+      }
+    });
+  }
+
+  startGame() {
+    this.cutSound = this.sound.add("cut");
+    this.boomSound = this.sound.add("boom");
+
+    this.fruitGroup = this.add.group();
+
+    this.add.text(20, 20, "🍉 Fruit Ninja Pro", {
+      fontSize: "26px",
+      color: "#fff",
+    });
+
+    this.add.text(20, 55, "Player: " + this.playerName, {
+      fontSize: "18px",
       color: "#00ffcc",
     });
 
     this.scoreText = this.add.text(20, 80, "Score: 0", {
-      fontSize: "24px",
-      color: "#ffffff",
+      fontSize: "22px",
+      color: "#fff",
     });
 
     this.add.text(20, 110, "High: " + this.highScore, {
-      fontSize: "20px",
+      fontSize: "18px",
       color: "#ffff00",
     });
 
@@ -115,9 +104,9 @@ export default class MainScene extends Phaser.Scene {
       "bomb",
     ];
 
-    // SPAWN SYSTEM
+    // 🍉 SPAWN SYSTEM
     this.time.addEvent({
-      delay: 750,
+      delay: 700,
       loop: true,
       callback: () => {
         if (this.gameOver) return;
@@ -132,6 +121,7 @@ export default class MainScene extends Phaser.Scene {
         );
 
         fruit.setScale(0.2);
+        this.fruitGroup.add(fruit);
 
         this.tweens.add({
           targets: fruit,
@@ -142,78 +132,46 @@ export default class MainScene extends Phaser.Scene {
       },
     });
 
-    // ✂️ SAFE CUT SYSTEM (NO LAG, NO BUG)
+    // ✂️ CUT SYSTEM (OPTIMIZED)
     this.input.on("pointermove", (pointer) => {
       if (this.gameOver) return;
 
       const now = Date.now();
       if (now - this.lastCutTime < 120) return;
 
-      this.children.each((child) => {
-        if (!child || !child.texture) return;
+      this.fruitGroup.getChildren().forEach((fruit) => {
+        if (!fruit || !fruit.texture) return;
 
-        const dx = pointer.x - child.x;
-        const dy = pointer.y - child.y;
+        const dx = pointer.x - fruit.x;
+        const dy = pointer.y - fruit.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < 45) {
           this.lastCutTime = now;
 
-          const key = child.texture.key;
+          const key = fruit.texture.key;
 
           // 💣 BOMB
           if (key === "bomb") {
             this.boomSound.play();
-            this.vibrate(300);
             this.endGame();
-            child.destroy();
+            fruit.destroy();
             return;
           }
 
-          // 🍉 CUT
+          // 🍉 NORMAL CUT
           this.cutSound.play();
-          this.vibrate(50);
-
-          this.createCutEffect(child.x, child.y, key);
 
           this.score++;
           this.scoreText.setText("Score: " + this.score);
 
-          child.destroy();
-          return;
+          fruit.destroy();
         }
       });
     });
   }
 
-  // ✂️ 2 PART CUT (SAFE VISUAL ONLY)
-  createCutEffect(x, y, key) {
-    const left = this.add.image(x, y, key).setScale(0.2);
-    const right = this.add.image(x, y, key).setScale(0.2);
-
-    this.tweens.add({
-      targets: left,
-      x: x - 70,
-      y: y + 70,
-      alpha: 0,
-      duration: 220,
-      onComplete: () => left.destroy(),
-    });
-
-    this.tweens.add({
-      targets: right,
-      x: x + 70,
-      y: y + 70,
-      alpha: 0,
-      duration: 220,
-      onComplete: () => right.destroy(),
-    });
-  }
-
-  vibrate(ms) {
-    if (navigator.vibrate) navigator.vibrate(ms);
-  }
-
+  // 💥 GAME OVER
   endGame() {
     this.gameOver = true;
 
@@ -222,25 +180,25 @@ export default class MainScene extends Phaser.Scene {
       localStorage.setItem("highScore", this.highScore);
     }
 
-    this.add.rectangle(400, 300, 800, 600, 0x000000, 0.85);
+    this.add.rectangle(400, 300, 800, 600, 0x000000, 0.8);
 
-    this.add.text(220, 180, "💔 GAME OVER", {
+    this.add.text(250, 200, "💔 GAME OVER", {
       fontSize: "40px",
       color: "#ff4d4d",
     });
 
-    this.add.text(300, 310, "Score: " + this.score, {
+    this.add.text(300, 280, "Score: " + this.score, {
       fontSize: "28px",
-      color: "#ffffff",
+      color: "#fff",
     });
 
-    this.add.text(260, 350, "High: " + this.highScore, {
-      fontSize: "24px",
+    this.add.text(300, 320, "High: " + this.highScore, {
+      fontSize: "22px",
       color: "#ffff00",
     });
 
-    const btn = this.add.text(300, 420, "💖 PLAY AGAIN", {
-      fontSize: "26px",
+    const btn = this.add.text(300, 400, "🔁 PLAY AGAIN", {
+      fontSize: "24px",
       backgroundColor: "#ff66cc",
       color: "#000",
       padding: { x: 10, y: 5 },
@@ -251,15 +209,15 @@ export default class MainScene extends Phaser.Scene {
       this.scene.restart();
     });
 
-    const newName = this.add.text(300, 470, "NEW NAME", {
-      fontSize: "22px",
+    const reset = this.add.text(300, 460, "NEW NAME", {
+      fontSize: "20px",
       backgroundColor: "#ffff00",
       color: "#000",
       padding: { x: 10, y: 5 },
     });
 
-    newName.setInteractive();
-    newName.on("pointerdown", () => {
+    reset.setInteractive();
+    reset.on("pointerdown", () => {
       localStorage.removeItem("playerName");
       this.scene.restart();
     });
