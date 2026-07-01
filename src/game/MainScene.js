@@ -448,21 +448,19 @@ export default class MainScene extends Phaser.Scene {
           const spawnRand = Math.random();
 
           // --- BALANCING UPDATE CHANGES (REQUIREMENT 1) ---
-          // Adjusted distribution thresholds to significantly reduce Birds and Balloons to ~3.5%
-          // and maintain Bombs around ~11%, giving all extra margins back to core fruits.
           if (spawnRand < 0.11) { // 11% Bomb Rate
             this.time.delayedCall(s * 150, () => {
               if (!this.gameOver && !this.isPaused) this.launchBombItem(speedModifier);
             });
-          } else if (spawnRand < 0.145) { // ~3.5% Bird Rate (0.11 to 0.145)
+          } else if (spawnRand < 0.145) { // ~3.5% Bird Rate
             this.time.delayedCall(s * 150, () => {
               if (!this.gameOver && !this.isPaused) this.spawnHorizontalFlyingBird();
             });
-          } else if (spawnRand < 0.18) { // ~3.5% Balloon Rate (0.145 to 0.18)
+          } else if (spawnRand < 0.18) { // ~3.5% Balloon Rate
             this.time.delayedCall(s * 150, () => {
               if (!this.gameOver && !this.isPaused) this.spawnTopDownFloatingBalloon();
             });
-          } else { // 82% Remaining Margin allocated directly to Normal Fruits
+          } else { // 82% Core Fruits
             let key = this.getWeightedFruitSelection();
             this.time.delayedCall(s * Phaser.Math.Between(100, 250), () => {
               if (!this.gameOver && !this.isPaused) {
@@ -476,11 +474,13 @@ export default class MainScene extends Phaser.Scene {
 
     this.input.on("pointerdown", () => { this.stats.totalSwipes++; });
     
-    this.input.on("pointermove", (pointer) => {
+    this.handlePointerMove = (pointer) => {
       if (this.gameOver || this.isPaused) return;
 
-      this.sword.x = pointer.x;
-      this.sword.y = pointer.y;
+      if (this.sword) {
+        this.sword.x = pointer.x;
+        this.sword.y = pointer.y;
+      }
       
       this.trailPoints.push({ x: pointer.x, y: pointer.y, alpha: 1.0 });
       if (this.trailPoints.length > this.maxTrailPoints) this.trailPoints.shift();
@@ -503,8 +503,8 @@ export default class MainScene extends Phaser.Scene {
 
           if (item.customType === "bird" || item.customType === "balloon") {
             this.triggerDeviceVibration(45);
-            if (this.settings.sound) this.birdSound.play();
-            if (item.customType === "balloon" && this.settings.sound) this.balloonSound.play();
+            if (this.settings.sound && this.birdSound) this.birdSound.play();
+            if (item.customType === "balloon" && this.settings.sound && this.balloonSound) this.balloonSound.play();
             this.cameras.main.flash(150, 255, 100, 100);
             this.loseLife(item);
             return;
@@ -518,10 +518,11 @@ export default class MainScene extends Phaser.Scene {
           this.executeFruitSlicePipeline(item, pointer);
         }
       });
-    });
+    };
+
+    this.input.on("pointermove", this.handlePointerMove);
   }
 
-  // Separated bomb launch handler mapping architecture requirements intact
   launchBombItem(speedModifier) {
     this.launchItemWithArcTrajectory("bomb", "bomb", speedModifier);
   }
@@ -542,11 +543,8 @@ export default class MainScene extends Phaser.Scene {
 
     if (!isLeftStart) bird.setFlipX(true);
 
-    // --- BALANCING UPDATE CHANGES (REQUIREMENT 2) ---
-    // Increased duration slightly (~12.5% slower translation velocity) for birds
     const flightDuration = Phaser.Math.Between(2950, 4700);
 
-    // Linear translation along X dimension
     this.tweens.add({
       targets: bird,
       x: targetX,
@@ -555,7 +553,6 @@ export default class MainScene extends Phaser.Scene {
       onComplete: () => this.safeDestroyObjectComponents(bird)
     });
 
-    // Vertical wave translation mapping configuration
     this.tweens.add({
       targets: bird,
       y: startY + Phaser.Math.Between(30, 60),
@@ -565,7 +562,6 @@ export default class MainScene extends Phaser.Scene {
       ease: "Sine.easeInOut"
     });
 
-    // Wing flap squish scale micro-animation simulation loop
     this.tweens.add({
       targets: bird,
       scaleY: 0.17,
@@ -585,11 +581,8 @@ export default class MainScene extends Phaser.Scene {
     balloon.launchTime = this.time.now;
     this.fruitsGroup.add(balloon);
 
-    // --- BALANCING UPDATE CHANGES (REQUIREMENT 2) ---
-    // Slower float time scale applied cleanly
     const fallDuration = Phaser.Math.Between(4250, 6200);
 
-    // Downward floating movement script
     this.tweens.add({
       targets: balloon,
       y: this.scale.height + 100,
@@ -598,7 +591,6 @@ export default class MainScene extends Phaser.Scene {
       onComplete: () => this.safeDestroyObjectComponents(balloon)
     });
 
-    // Sinusoidal horizontal swing wobble behavior integration
     this.tweens.add({
       targets: balloon,
       x: startX + Phaser.Math.Between(30, 70) * (Math.random() < 0.5 ? 1 : -1),
@@ -608,7 +600,6 @@ export default class MainScene extends Phaser.Scene {
       ease: "Sine.easeInOut"
     });
 
-    // Micro pulse structural size animation
     this.tweens.add({
       targets: balloon,
       scaleX: 0.26,
@@ -620,40 +611,27 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // ==========================================
-  // PART 2 & 7 & 8: WEIGHTED PROBABILITY SELECTION MATRIX
-  // ==========================================
   getWeightedFruitSelection() {
     const roll = Math.random();
 
-    // Part 7 & 8 Special Fruit Hooks (5% Golden, 5% Ice Fruit check)
     if (roll < 0.05) return "golden_apple";
     if (roll < 0.10) return "ice_fruit";
 
-    // Standard items distribution map (Upgraded to integrate Mango into Common Tiers cleanly)
     const fruitRoll = Math.random();
     if (fruitRoll < 0.45) {
-      // Common Tier (45% Allocation pool including Mango)
       return ["apple", "banana", "orange", "mango"][Phaser.Math.Between(0, 3)];
     } else if (fruitRoll < 0.75) {
-      // Medium Tier (30% Allocation pool)
       return ["tomato", "lemon", "strawberry"][Phaser.Math.Between(0, 2)];
     } else if (fruitRoll < 0.96) {
-      // Rare Tier (21% Allocation pool)
       return ["watermelon", "pineapple"][Phaser.Math.Between(0, 1)];
     } else {
-      // Very Rare Tier (4% Allocation pool)
       return "chili";
     }
   }
 
-  // ==========================================
-  // PART 3 & 4 & 5: DYNAMIC Trajectory/Scaling/Rotation
-  // ==========================================
   launchItemWithArcTrajectory(key, spawnType, speedModifier) {
     const isLeftLaunch = Math.random() < 0.5;
     
-    // Part 5 Physics Parameter Randomization Formulas
     const startX = isLeftLaunch ? Phaser.Math.Between(30, this.scale.width * 0.4) : Phaser.Math.Between(this.scale.width * 0.6, this.scale.width - 30);
     const startY = this.scale.height + 50;
 
@@ -662,12 +640,11 @@ export default class MainScene extends Phaser.Scene {
 
     const item = this.add.image(startX, startY, key);
     
-    // Part 3 Scale Blueprint Matrix Lookup (Including newly implemented Mango scale allocation)
     let itemScale = 0.25;
     switch (key) {
       case "apple": case "orange": itemScale = 0.25; break;
       case "banana": case "tomato": itemScale = 0.24; break;
-      case "mango": itemScale = 0.27; break; // Mango Scale blueprint
+      case "mango": itemScale = 0.27; break;
       case "lemon": itemScale = 0.20; break;
       case "chili": case "strawberry": itemScale = 0.18; break;
       case "watermelon": itemScale = 0.32; break;
@@ -695,11 +672,9 @@ export default class MainScene extends Phaser.Scene {
 
     this.fruitsGroup.add(item);
 
-    // --- BALANCING UPDATE CHANGES (REQUIREMENT 2 & 3) ---
-    // Multiplied tween baseline durations dynamically to safely slow speed down while keeping perfect arcs.
-    let speedScalar = 1.125; // Fruits are slowed down by ~12.5%
+    let speedScalar = 1.125;
     if (spawnType === "bomb") {
-      speedScalar = 1.09;   // Bombs are slowed down by ~9%
+      speedScalar = 1.09;
     }
 
     const totalDuration = (Phaser.Math.Between(1900, 2500) - speedModifier) * speedScalar;
@@ -723,7 +698,6 @@ export default class MainScene extends Phaser.Scene {
       }
     });
 
-    // Part 4 Multi-directional, Variable Angular Rotation Configurator
     const rotationDirection = Math.random() < 0.5 ? 1 : -1;
     const rotationSpeedMagnitude = Phaser.Math.FloatBetween(1.5, 5.0);
     const targetRotation = rotationDirection * rotationSpeedMagnitude;
@@ -736,9 +710,6 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // ==========================================
-  // PART 6: FRUIT RUSH SCENARIO EVENT TRIGGER
-  // ==========================================
   triggerFruitRushEvent() {
     this.isFruitRushActive = true;
     
@@ -756,10 +727,9 @@ export default class MainScene extends Phaser.Scene {
       alpha: 0,
       duration: 1800,
       ease: "Quad.easeIn",
-      onComplete: () => rushAnnouncement.destroy()
+      onComplete: () => { if (rushAnnouncement && rushAnnouncement.destroy) rushAnnouncement.destroy(); }
     });
 
-    // Intense continuous storm sequence generation loop (16 fruits, zero bombs)
     for (let i = 0; i < 16; i++) {
       this.time.delayedCall(i * 250, () => {
         if (!this.gameOver && !this.isPaused) {
@@ -769,13 +739,11 @@ export default class MainScene extends Phaser.Scene {
       });
     }
 
-    // Cooldown context terminator
     this.time.delayedCall(5000, () => {
       this.isFruitRushActive = false;
     });
   }
 
-  // ================= PAUSE AND SETTINGS INTERFACE =================
   createInteractiveControlHUD() {
     this.hudPauseBtn = this.add.text(this.scale.width - 120, 65, "⏸️ MENU", {
       fontSize: "14px",
@@ -840,11 +808,10 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // ================= AAA GRAPHICS TRAILS & PARTICLE FX PIPELINES =================
   createSwordTrailSystem() {
     this.trailGraphics = this.add.graphics();
     this.trailPoints = [];
-    this.maxTrailPoints = 20; // Increased capacity for highly fluid tracking sweeps
+    this.maxTrailPoints = 20;
   }
 
   createJuiceSplashDecal(x, y, colorHex) {
@@ -860,7 +827,7 @@ export default class MainScene extends Phaser.Scene {
       alpha: 0,
       duration: 7000,
       delay: 3000,
-      onComplete: () => splash.destroy()
+      onComplete: () => { if (splash && splash.destroy) splash.destroy(); }
     });
   }
 
@@ -873,7 +840,7 @@ export default class MainScene extends Phaser.Scene {
       scale: 12,
       alpha: 0,
       duration: 500,
-      onComplete: () => sw.destroy()
+      onComplete: () => { if (sw && sw.destroy) sw.destroy(); }
     });
 
     for (let i = 0; i < 12; i++) {
@@ -885,7 +852,7 @@ export default class MainScene extends Phaser.Scene {
         rotation: Phaser.Math.FloatBetween(-4, 4),
         alpha: 0,
         duration: 800,
-        onComplete: () => d.destroy()
+        onComplete: () => { if (d && d.destroy) d.destroy(); }
       });
     }
 
@@ -898,7 +865,7 @@ export default class MainScene extends Phaser.Scene {
         scale: 4.5,
         alpha: 0,
         duration: Phaser.Math.Between(700, 1200),
-        onComplete: () => sm.destroy()
+        onComplete: () => { if (sm && sm.destroy) sm.destroy(); }
       });
     }
   }
@@ -924,11 +891,10 @@ export default class MainScene extends Phaser.Scene {
       scale: 1.5,
       alpha: 0,
       duration: 600,
-      onComplete: () => critText.destroy()
+      onComplete: () => { if (critText && critText.destroy) critText.destroy(); }
     });
   }
 
-  // ================= TICK PROCESSING INTERFACES =================
   update(time, delta) {
     if (this.currentBg.r !== this.targetBg.r || this.currentBg.g !== this.targetBg.g || this.currentBg.b !== this.targetBg.b) {
       this.currentBg.r = Math.round(Phaser.Math.Linear(this.currentBg.r, this.targetBg.r, 0.05));
@@ -952,32 +918,32 @@ export default class MainScene extends Phaser.Scene {
       });
     }
 
-    this.trailGraphics.clear();
-    if (this.trailPoints.length > 1 && !this.isPaused && !this.gameOver) {
-      for (let i = 1; i < this.trailPoints.length; i++) {
-        let ptA = this.trailPoints[i - 1];
-        let ptB = this.trailPoints[i];
-        ptA.alpha -= 0.04; // Slightly extended trail fading window duration
+    if (this.trailGraphics) {
+      this.trailGraphics.clear();
+      if (this.trailPoints.length > 1 && !this.isPaused && !this.gameOver) {
+        for (let i = 1; i < this.trailPoints.length; i++) {
+          let ptA = this.trailPoints[i - 1];
+          let ptB = this.trailPoints[i];
+          ptA.alpha -= 0.04;
 
-        if (ptA.alpha <= 0) continue;
+          if (ptA.alpha <= 0) continue;
 
-        // Core polished neon cyan inner glow configuration
-        this.trailGraphics.lineStyle(i * 2.2, 0x00ffff, ptA.alpha * 0.45);
-        this.trailGraphics.beginPath();
-        this.trailGraphics.moveTo(ptA.x, ptA.y);
-        this.trailGraphics.lineTo(ptB.x, ptB.y);
-        this.trailGraphics.strokePath();
+          this.trailGraphics.lineStyle(i * 2.2, 0x00ffff, ptA.alpha * 0.45);
+          this.trailGraphics.beginPath();
+          this.trailGraphics.moveTo(ptA.x, ptA.y);
+          this.trailGraphics.lineTo(ptB.x, ptB.y);
+          this.trailGraphics.strokePath();
 
-        this.trailGraphics.lineStyle(i * 0.8, 0xffffff, ptA.alpha * 0.95);
-        this.trailGraphics.strokePath();
+          this.trailGraphics.lineStyle(i * 0.8, 0xffffff, ptA.alpha * 0.95);
+          this.trailGraphics.strokePath();
+        }
+        this.trailPoints = this.trailPoints.filter(p => p.alpha > 0);
       }
-      this.trailPoints = this.trailPoints.filter(p => p.alpha > 0);
     }
 
     if (this.gameOver || this.isPaused) return;
 
     this.fruitsGroup.getChildren().forEach((item) => {
-      // Exclude horizontal birds and falling balloons from base parabolic update processing rules
       if (item && !item.cut && item.customType !== "bird" && item.customType !== "balloon") {
         if (item.shadowRef) {
           item.shadowRef.x = item.x;
@@ -992,54 +958,44 @@ export default class MainScene extends Phaser.Scene {
     });
   }
 
-  // ================= SLICING & SCORE PROCESSING LOGIC PLUGINS =================
   executeFruitSlicePipeline(fruit, pointer) {
     let key = fruit.texture.key;
     
-    // ==========================================
-    // PART 7 & 8: SPECIAL FRUIT EFFECT PROCESSING HOOKS
-    // ==========================================
     if (key === "golden_apple") {
-      if (this.settings.sound) this.goldenSound.play();
+      if (this.settings.sound && this.goldenSound) this.goldenSound.play();
       this.score += 10;
       this.showFloatingScoreText(fruit.x, fruit.y, 10);
-      this.spawnHighFidelityFruitJuiceParticles(fruit.x, fruit.y, 0xffff00, 20); // Bright Yellow Matrix
+      this.spawnHighFidelityFruitJuiceParticles(fruit.x, fruit.y, 0xffff00, 20);
       this.terminateSlicedFruitPresentation(fruit);
       this.updateUI();
       return;
     }
 
     if (key === "ice_fruit") {
-      if (this.settings.sound) this.cutSound.play();
-      this.cameras.main.flash(200, 0, 170, 255); // Ice Blue Flash Tint
-      this.triggerAAASlowMotionImpulse(); // Enforce freeze speed scalar
-      this.spawnHighFidelityFruitJuiceParticles(fruit.x, fruit.y, 0x00ccff, 22); // Ice Blue Matrix
+      if (this.settings.sound && this.cutSound) this.cutSound.play();
+      this.cameras.main.flash(200, 0, 170, 255);
+      this.triggerAAASlowMotionImpulse();
+      this.spawnHighFidelityFruitJuiceParticles(fruit.x, fruit.y, 0x00ccff, 22);
       this.terminateSlicedFruitPresentation(fruit);
       this.updateUI();
       return;
     }
 
-    if (this.settings.sound) this.cutSound.play();
+    if (this.settings.sound && this.cutSound) this.cutSound.play();
     this.combo++;
     this.stats.totalFruitsCut++;
 
     if (this.combo > this.stats.highestCombo) this.stats.highestCombo = this.combo;
 
-    // ==========================================
-    // PART 6: DOUBLE MULTIPLIER ON FRUIT RUSH CONTEXT
-    // ==========================================
     let calculatedMultiplier = Math.min(5, Math.floor(this.combo / 3) + 1);
     if (this.isFruitRushActive) {
       calculatedMultiplier *= 2;
     }
     this.score += calculatedMultiplier;
 
-    // ==========================================
-    // PART 10: TIRED COMBO MILESTONE CAMERA SHAKE & FX
-    // ==========================================
     if (this.combo === 3 || this.combo === 5 || this.combo === 8 || this.combo === 12) {
       this.cameras.main.shake(180, 0.012);
-      if (this.settings.sound) this.milestoneSound.play();
+      if (this.settings.sound && this.milestoneSound) this.milestoneSound.play();
     }
 
     const isCritical = Math.random() < 0.08;
@@ -1051,28 +1007,24 @@ export default class MainScene extends Phaser.Scene {
     this.showFloatingScoreText(fruit.x, fruit.y, calculatedMultiplier);
     if (this.combo % 3 === 0) this.displayFloatingComboPopup(calculatedMultiplier);
 
-    // ==========================================
-    // PART 1 & 9: UNIQUE JUICE REGISTRIES AND COUNTS
-    // ==========================================
     let juiceColor = 0xffa500;
     let particleCount = 12;
 
     switch (key) {
-      case "watermelon": juiceColor = 0xff2222; particleCount = 25; break; // Lots
+      case "watermelon": juiceColor = 0xff2222; particleCount = 25; break;
       case "apple": juiceColor = 0xff0000; break;
       case "banana": juiceColor = 0xffff22; break;
-      case "mango": juiceColor = 0xffc300; particleCount = 20; break; // Mango Specific Requirements
+      case "mango": juiceColor = 0xffc300; particleCount = 20; break;
       case "strawberry": juiceColor = 0xff1166; break;
       case "pineapple": juiceColor = 0xffcc11; break;
       case "orange": juiceColor = 0xffa500; break;
-      case "lemon": juiceColor = 0xffff66; particleCount = 18; break; // Yellow splash
-      case "tomato": juiceColor = 0xdd0000; particleCount = 18; break; // Red splash
-      case "chili": juiceColor = 0xff3300; particleCount = 20; break; // Handled as fire next
+      case "lemon": juiceColor = 0xffff66; particleCount = 18; break;
+      case "tomato": juiceColor = 0xdd0000; particleCount = 18; break;
+      case "chili": juiceColor = 0xff3300; particleCount = 20; break;
     }
 
     this.createJuiceSplashDecal(fruit.x, fruit.y, juiceColor);
     
-    // Part 9 Fire Engine mapping for chili
     if (key === "chili") {
       this.spawnChiliFireParticles(fruit.x, fruit.y);
     } else {
@@ -1083,9 +1035,6 @@ export default class MainScene extends Phaser.Scene {
     this.terminateSlicedFruitPresentation(fruit);
   }
 
-  // ==========================================
-  // PART 9 & 11: REUSED OR INDEPENDENT INTERPOLATION PARTICLES
-  // ==========================================
   spawnHighFidelityFruitJuiceParticles(x, y, colorHex, count = 12) {
     if (this.settings.quality === "Low") return;
     for (let i = 0; i < count; i++) {
@@ -1100,14 +1049,11 @@ export default class MainScene extends Phaser.Scene {
         alpha: 0,
         scale: 0,
         duration: Phaser.Math.Between(450, 750),
-        onComplete: () => p.destroy() // Explicit structural cleanup prevent leaks
+        onComplete: () => { if (p && p.destroy) p.destroy(); }
       });
     }
   }
 
-  // ==========================================
-  // PART 9: DYNAMIC FIRE SHAPE GENERATOR (CHILI SPECS)
-  // ==========================================
   spawnChiliFireParticles(x, y) {
     if (this.settings.quality === "Low") return;
     for (let i = 0; i < 20; i++) {
@@ -1122,12 +1068,11 @@ export default class MainScene extends Phaser.Scene {
         scale: { start: 1.5, end: 0 },
         alpha: 0,
         duration: Phaser.Math.Between(400, 700),
-        onComplete: () => f.destroy()
+        onComplete: () => { if (f && f.destroy) f.destroy(); }
       });
     }
   }
 
-  // Split Animation Execution Block
   terminateSlicedFruitPresentation(fruit) {
     const leftPart = this.add.image(fruit.x, fruit.y, fruit.texture.key).setScale(fruit.scaleX);
     const rightPart = this.add.image(fruit.x, fruit.y, fruit.texture.key).setScale(fruit.scaleX);
@@ -1143,7 +1088,7 @@ export default class MainScene extends Phaser.Scene {
       alpha: 0,
       duration: 650,
       ease: "Quad.easeIn",
-      onComplete: () => leftPart.destroy()
+      onComplete: () => { if (leftPart && leftPart.destroy) leftPart.destroy(); }
     });
 
     this.tweens.add({
@@ -1154,15 +1099,12 @@ export default class MainScene extends Phaser.Scene {
       alpha: 0,
       duration: 650,
       ease: "Quad.easeIn",
-      onComplete: () => rightPart.destroy()
+      onComplete: () => { if (rightPart && rightPart.destroy) rightPart.destroy(); }
     });
 
     this.safeDestroyObjectComponents(fruit);
   }
 
-  // ==========================================
-  // PART 8: SLOW-MOTION SCALE INJECTOR (ICE FRUIT)
-  // ==========================================
   triggerAAASlowMotionImpulse() {
     this.tweens.timeScale = 0.35;
     this.time.delayedCall(4000, () => {
@@ -1178,7 +1120,7 @@ export default class MainScene extends Phaser.Scene {
       scale: 1.6,
       alpha: 0,
       duration: 550,
-      onComplete: () => fsTxt.destroy()
+      onComplete: () => { if (fsTxt && fsTxt.destroy) fsTxt.destroy(); }
     });
   }
 
@@ -1196,14 +1138,13 @@ export default class MainScene extends Phaser.Scene {
       scale: { start: 0.2, end: 1.3 },
       alpha: { start: 1, end: 0 },
       duration: 800,
-      onComplete: () => cbTxt.destroy()
+      onComplete: () => { if (cbTxt && cbTxt.destroy) cbTxt.destroy(); }
     });
   }
 
-  // ================= SYSTEM ENVIRONMENT LAYOUT GENERATORS =================
   createCreativeBackground() {
     this.stars = [];
-    for (let i = 0; i < 45; i++) { // Increased particle counts for gorgeous twinkling density
+    for (let i = 0; i < 45; i++) {
       let star = this.add.rectangle(
         Phaser.Math.Between(0, this.scale.width),
         Phaser.Math.Between(0, this.scale.height),
@@ -1249,7 +1190,7 @@ export default class MainScene extends Phaser.Scene {
     this.lives--;
     this.combo = 0;
 
-    if (this.heartUIElements[this.lives]) {
+    if (this.heartUIElements && this.heartUIElements[this.lives]) {
       this.heartUIElements[this.lives].setText("🤍").setAlpha(0.4);
     }
 
@@ -1259,9 +1200,9 @@ export default class MainScene extends Phaser.Scene {
   }
 
   updateUI() {
-    this.scoreText.setText("Score: " + this.score);
+    if (this.scoreText) this.scoreText.setText("Score: " + this.score);
     const calculatedMultiplier = Math.min(5, Math.floor(this.combo / 3) + 1);
-    this.comboText.setText("Combo: x" + calculatedMultiplier);
+    if (this.comboText) this.comboText.setText("Combo: x" + calculatedMultiplier);
 
     if (this.score >= 50) this.targetBg = { r: 32, g: 9, b: 38 };
     else if (this.score >= 25) this.targetBg = { r: 11, g: 35, b: 30 };
@@ -1274,17 +1215,19 @@ export default class MainScene extends Phaser.Scene {
     }
   }
 
-  // ==========================================
-  // PART 11: COMPLETELY SECURE DESTROY COMPONENT WRAPPER
-  // ==========================================
   safeDestroyObjectComponents(obj) {
     if (!obj) return;
-    if (obj.shadowRef) obj.shadowRef.destroy();
-    if (obj.glowRef) obj.glowRef.destroy();
-    obj.destroy();
+    if (obj.shadowRef && obj.shadowRef.destroy) {
+      obj.shadowRef.destroy();
+      obj.shadowRef = null;
+    }
+    if (obj.glowRef && obj.glowRef.destroy) {
+      obj.glowRef.destroy();
+      obj.glowRef = null;
+    }
+    if (obj.destroy) obj.destroy();
   }
 
-  // ================= STATISTICS AND OVERLAYS PIPELINE =================
   showStatisticsOverlay() {
     const overlayContainer = this.add.container(0, 0);
     const panelBg = this.add.rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width * 0.85, this.scale.height * 0.75, 0x0a0a14, 0.95);
@@ -1312,12 +1255,14 @@ export default class MainScene extends Phaser.Scene {
     closeBtn.on("pointerdown", () => overlayContainer.destroy());
   }
 
-  // ================= BEAUTIFUL GAME OVER SCREEN REDESIGN =================
   endGame() {
     this.gameOver = true;
-    if (this.settings.sound) this.boomSound.play();
+    if (this.settings.sound && this.boomSound) this.boomSound.play();
 
-    this.tweens.timeScale = 1.0; // Enforce standard timeline rollback
+    // REMOVED POINTERMOVE CRASH RISK: Unregister events instantly
+    this.input.off("pointermove", this.handlePointerMove);
+
+    this.tweens.timeScale = 1.0; 
     this.time.removeAllEvents();
     if (this.cleanupTimer) this.cleanupTimer.remove();
     if (this.spawnEvent) this.spawnEvent.remove();
@@ -1328,7 +1273,7 @@ export default class MainScene extends Phaser.Scene {
     this.shadowsGroup.clear(true, true);
     this.cloudsGroup.clear(true, true);
     this.bgSplashGroup.clear(true, true);
-    this.trailGraphics.clear();
+    if (this.trailGraphics) this.trailGraphics.clear();
 
     let medalTier = "🥉 Bronze";
     if (this.score >= 60) medalTier = "💎 Diamond Elite";
@@ -1344,7 +1289,6 @@ export default class MainScene extends Phaser.Scene {
 
     const endPanelContainer = this.add.container(0, 50).setAlpha(0);
 
-    // AAA Premium Glassmorphic frosted panel emulation background matrix box
     const glassPanel = this.add.rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width * 0.9, this.scale.height * 0.85, 0x070c1f, 0.92);
     glassPanel.setStrokeStyle(2, 0x00ffcc, 0.4);
     endPanelContainer.add(glassPanel);
@@ -1355,7 +1299,6 @@ export default class MainScene extends Phaser.Scene {
     const mainHeader = this.add.text(cX, cY - 180, "💥 COMBAT TERMINATED", { fontSize: "32px", color: "#ff2222", fontStyle: "bold" }).setOrigin(0.5);
     endPanelContainer.add(mainHeader);
 
-    // Trigger explosive celebratory confetti shower if new score overthrows past baseline tracking records
     if (isNewRecordBroken) {
       const victoryCelebrationHeader = this.add.text(cX, cY - 225, "🎉 NEW HIGH RECORD OVERTHROWN! 🎉", { fontSize: "20px", color: "#fff500", fontStyle: "bold" }).setOrigin(0.5);
       endPanelContainer.add(victoryCelebrationHeader);
@@ -1368,18 +1311,20 @@ export default class MainScene extends Phaser.Scene {
         duration: 400
       });
 
-      // Structural lightweight confetti system deployment loop
-      for (let c = 0; i < 30; i++) {
+      // FIXED INFINITE LOOP: 'i' variable swapped perfectly to local loop condition 'c'
+      for (let c = 0; c < 30; c++) {
         let conf = this.add.image(Phaser.Math.Between(50, this.scale.width-50), Phaser.Math.Between(20, 150), "confetti_particle");
-        conf.setTint(Phaser.Math.RND.pick([0xff00cc, 0x00ffcc, 0xffff00, 0xff0000]));
-        this.tweens.add({
-          targets: conf,
-          y: this.scale.height + 20,
-          rotation: 6,
-          duration: Phaser.Math.Between(1500, 3000),
-          ease: "Quad.easeIn",
-          onComplete: () => conf.destroy()
-        });
+        if (conf) {
+          conf.setTint(Phaser.Math.RND.pick([0xff00cc, 0x00ffcc, 0xffff00, 0xff0000]));
+          this.tweens.add({
+            targets: conf,
+            y: this.scale.height + 20,
+            rotation: 6,
+            duration: Phaser.Math.Between(1500, 3000),
+            ease: "Quad.easeIn",
+            onComplete: () => { if (conf && conf.destroy) conf.destroy(); }
+          });
+        }
       }
     }
 
@@ -1393,7 +1338,6 @@ export default class MainScene extends Phaser.Scene {
     const mText = this.add.text(cX, cY - 95, `Rank Awarded: ${medalTier}`, { fontSize: "20px", color: "#ffcc00", fontStyle: "bold" }).setOrigin(0.5);
     endPanelContainer.add(mText);
 
-    // Incremental ticker counting score animation
     const sText = this.add.text(cX, cY - 50, `Current Score: 0`, { fontSize: "22px", color: "#ffffff", fontStyle: "bold" }).setOrigin(0.5);
     endPanelContainer.add(sText);
     let countObj = { val: 0 };
@@ -1402,13 +1346,14 @@ export default class MainScene extends Phaser.Scene {
       val: this.score,
       duration: 1000,
       ease: "Quad.easeOut",
-      onUpdate: () => sText.setText(`Current Score: ${Math.floor(countObj.val)}`)
+      onUpdate: () => {
+        if (sText && sText.setText) sText.setText(`Current Score: ${Math.floor(countObj.val)}`);
+      }
     });
 
     const hText = this.add.text(cX, cY - 15, `Dojo Best: ${this.highScore}`, { fontSize: "17px", color: "#8888aa" }).setOrigin(0.5);
     endPanelContainer.add(hText);
 
-    // Advanced dynamic analytics grid visualization layer
     const accuracy = this.stats.totalSwipes > 0 ? Math.round((this.stats.successfulSwipes / this.stats.totalSwipes) * 100) : 100;
     const analyticsText = 
       `Sliced Fruits: ${this.stats.totalFruitsCut}  |  Accuracy: ${accuracy}%\n` +
@@ -1416,7 +1361,6 @@ export default class MainScene extends Phaser.Scene {
     const analyticsDisplay = this.add.text(cX, cY + 35, analyticsText, { fontSize: "14px", color: "#cfd3e0", align: "center", lineSpacing: 6 }).setOrigin(0.5);
     endPanelContainer.add(analyticsDisplay);
 
-    // Standard control buttons setup with interaction styles mapping active requirements
     const retryBtn = this.add.text(cX - 95, cY + 115, "🔄 PLAY AGAIN", { fontSize: "17px", backgroundColor: "#00ffcc", color: "#000", padding: { x: 14, y: 10 }, fontStyle: "bold" }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     endPanelContainer.add(retryBtn);
     retryBtn.on("pointerover", () => retryBtn.setStyle({ backgroundColor: "#ffffff" }));
@@ -1431,7 +1375,6 @@ export default class MainScene extends Phaser.Scene {
       this.scene.restart();
     });
 
-    // Premium slide up ease-out panel entry transition pipeline layout script
     this.tweens.add({
       targets: endPanelContainer,
       alpha: 1,
